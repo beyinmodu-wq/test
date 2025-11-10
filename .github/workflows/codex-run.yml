@@ -1,0 +1,27 @@
+name: Codex Test & Generate
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  codex-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Codex Prompt
+        run: |
+          # Codex CLI veya script üzerinden promptu çalıştır
+          codex run --prompt-file codex_prompt.txt --output-dir generated
