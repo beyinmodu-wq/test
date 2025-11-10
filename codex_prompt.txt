@@ -1,0 +1,111 @@
+CONTEXT (READ CAREFULLY):
+- Repository: https://github.com/CxReiS/DeepwebXai
+- This repo is CONFIDENTIAL and PRIVATE. Do not publish code, commits, or artifacts outside this repository. Mark all new commits with the tag: [DBX-PROTOKOL][CONFIDENTIAL].
+- Project tech stack: Node/TypeScript backend, React/TypeScript frontend, monorepo (packages/*), AI gateway abstraction already present.
+- Deployment target: Google Cloud (GCP). Use Cloud Run for services and Cloud Storage for documents.
+- Comments requirement: Every new code file must include comments in English then Turkish explaining purpose and main functions (short).
+- Deliverable must be a single pull request branch named: feat/threat-intel-module
+
+TASK (OVERALL GOAL):
+Implement a full “Threat Intelligence Extraction” feature into the repo and verify it by running tests and returning a structured test report. The model must:
+1. Inspect the repository structure and existing pipelines; reuse OCR and document ingestion code where applicable.
+2. Add a new module that ingests uploaded documents (PDF, DOCX, images), extracts IoCs (IPs, domains, hashes, emails), anomalous patterns and actor references, and returns a structured JSON (`ThreatIntelResult`).
+3. Integrate the module with the existing AI provider abstraction layer, supporting fallback providers.
+4. Implement security: authentication check on API route, role-based access stub, logging, rate-limiting stub.
+5. Add frontend dashboard component to display extracted IoCs with filtering/sorting.
+6. Create unit, integration, and E2E tests; run them; and include test outputs in the response.
+
+REQUIREMENTS (DETAILED):
+A. Architecture & File Changes
+- Place backend code under `packages/backend/src/modules/threat-intel/`.
+- Place frontend React component under `packages/frontend/src/components/ThreatIntelDashboard/`.
+- Add TypeScript interfaces under `packages/shared/src/interfaces/threat-intel.ts`.
+- Add DB schema migration or Prisma model (or existing ORM) patch under `packages/backend/prisma/` or equivalent (if repo uses a different ORM, adapt accordingly).
+- Add new API route `POST /api/threat-intel/upload` that:
+  - Accepts multipart/form-data with file uploads.
+  - Validates JWT Bearer token and checks role `analyst` or `admin`.
+  - Streams files to OCR/document pipeline (reuse existing code) and passes extracted text to AI provider via existing ai-gateway.
+  - Parses AI response into `ThreatIntelResult` and stores it in DB (or returns only if storage unavailable).
+  - Emits an event to monitoring (abstracted function `emitMonitoringEvent`).
+
+B. TypeScript Interface (required)
+- Create `ThreatIntelResult` interface with fields including:
+  - `id: string`
+  - `sourceFileName: string`
+  - `extractedAt: string` (ISO)
+  - `indicators: { type: 'ip'|'domain'|'hash'|'email'|'url'|'mutex', value: string, context?: string }[]`
+  - `severity: 'low'|'medium'|'high'|'critical'`
+  - `confidence: number` (0-1)
+  - `rawAiOutput: string`
+  - `notes?: string`
+- Save in `packages/shared/src/interfaces/threat-intel.ts`.
+
+C. Backend Route Stub
+- Implement `POST /api/threat-intel/upload` in TypeScript with precise comments (EN then TR).
+- Use streaming file handling (multer or busboy) and reuse OCR service `services/ocr/*`.
+- Use `aiGateway.analyzeThreatText(text, options)` to call AI; if not exist, create adapter in `packages/backend/src/services/ai-gateway/threat-adapter.ts`.
+- Ensure fallback providers: attempt primary provider; on error or low confidence (<0.5) fallback to secondary provider, merge results.
+
+D. Frontend Component
+- `ThreatIntelDashboard`:
+  - Fetch list via `GET /api/threat-intel?limit=50`.
+  - Display table of indicators, severity, confidence, timestamp.
+  - Provide filter by type, severity, confidence range, and full-text search on context.
+  - Provide “View raw AI output” modal.
+
+E. Tests and Verification
+- Unit tests: use existing test framework (Jest preferred). Create tests for:
+  - Parser functions that detect IoCs from text.
+  - `ai-gateway` adapter stubs (mock providers).
+- Integration tests: use `supertest` to hit the `POST /api/threat-intel/upload` route with sample files (include small test PDF, test image with embedded text).
+- E2E tests: use Playwright (or if project already uses Cypress, use Cypress) to open the ThreatIntelDashboard, upload a file, and assert indicators show.
+- Test commands to run:
+  - `npm ci`
+  - `npm run build`
+  - `npm --workspace packages/backend run test -- --testPathPattern=threat-intel`
+  - `npm --workspace packages/frontend run test:e2e` (or the project's E2E command)
+- The model MUST execute tests locally in the environment it runs in and capture stdout/stderr. If actual execution is impossible in the environment, clearly state which steps failed to execute and provide exact reproduction commands and expected outputs.
+
+F. Deployment (GCP)
+- Provide Cloud Run service name: `deepwebxai-threat-intel`
+- Provide required GCP environment variables:
+  - `GCLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` (path), `AI_PROVIDER_API_KEY`, `SECONDARY_AI_PROVIDER_KEY`, `DB_CONNECTION_STRING`, `STORAGE_BUCKET_NAME`, `JWT_PUBLIC_KEY`, `MONITORING_ENDPOINT`.
+- Add CI job (GitHub Actions) `deploy-threat-intel.yml` that builds backend, runs tests, and deploys to Cloud Run on successful tests.
+
+G. Security & Privacy
+- All new code must log events but never log full file contents; redact sensitive data.
+- Add a README `packages/backend/modules/threat-intel/README.md` with usage, privacy notes, and test instructions.
+- Mark the PR with `[DBX-PROTOKOL][CONFIDENTIAL]`.
+
+H. Risk Assessment
+- Provide a short block comment listing risks: false positives, PII leakage, cost explosion, latency. For each risk give mitigation steps.
+
+OUTPUT FORMAT (what the model must return in reply):
+1. A summary of repository inspection (files/areas used).
+2. A list of files added/modified with full paths.
+3. For each new/modified file, include code content (stubs) with comments (EN then TR).
+4. All test files created with their content.
+5. Exact shell commands to run locally to reproduce build & tests.
+6. The results of running the tests (stdout/stderr). If the model cannot actually run them in its environment, report precisely which commands were run, which outputs were captured, and which could not be executed — include logs available.
+7. A final deployment snippet for GitHub Actions and `gcloud` commands for deployment to Cloud Run.
+8. A short risk assessment block.
+9. A single-line checklist of remaining manual steps (if any).
+
+SPECIAL INSTRUCTIONS FOR GENERATED CODE:
+- Each file header: short English comment then Turkish comment describing file purpose.
+- Keep implementations as stubs where full implementation would be large; but ensure parser functions for IoC extraction are fully implemented (use regexes for IP, domain, hash, email, URL).
+- Tests must be runnable and deterministic (mock AI provider responses).
+- Use package-local scripts when possible and add `package.json` script updates if needed.
+
+EXECUTION:
+- After code generation, run: `npm ci && npm run build && npm --workspace packages/backend run test && npm --workspace packages/frontend run test:e2e`
+- Capture and return full logs and create a summarized test report (passed/failed counts, failing tests name(s), and stack traces).
+
+CONFIDENTIALITY REMINDER:
+- Do not output any secrets in the reply.
+- Do not push to any remote other than the repository this prompt targets (simulate a branch/PR if push not possible).
+- Each new commit/message must include `[DBX-PROTOKOL][CONFIDENTIAL]`.
+
+If anything in the repo differs (different test framework, different ORM), ADAPT to match the repo's existing conventions — but keep the same high-level design and test coverage.
+
+End of prompt.
