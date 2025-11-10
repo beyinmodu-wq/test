@@ -1,3 +1,6 @@
+# kök dizinde - prompt dosyası yoksa oluştur
+cat > codex_prompt.txt <<'PROMPT'
+
 CONTEXT (READ CAREFULLY):
 - Repository: https://github.com/CxReiS/DeepwebXai
 - This repo is CONFIDENTIAL and PRIVATE. Do not publish code, commits, or artifacts outside this repository. Mark all new commits with the tag: [DBX-PROTOKOL][CONFIDENTIAL].
@@ -109,3 +112,11 @@ CONFIDENTIALITY REMINDER:
 If anything in the repo differs (different test framework, different ORM), ADAPT to match the repo's existing conventions — but keep the same high-level design and test coverage.
 
 End of prompt.
+
+PROMPT
+
+# git commit / push
+git checkout -b feat/run-codex
+git add codex_prompt.txt
+git commit -m "[DBX-PROTOKOL][CONFIDENTIAL] Add codex_prompt for automated run"
+git push origin feat/run-codex
