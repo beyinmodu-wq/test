@@ -1,27 +1,53 @@
-name: Codex Test & Generate
+name: Run Codex Prompt
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+  workflow_dispatch: # Manuel çalıştırma için
 
 jobs:
-  codex-job:
+  run-codex:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v3
+      - name: 1. Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
+      - name: 2. Install jq (JSON parser)
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Run Codex Prompt
+      - name: 3. Prepare Prompt and Call Codex API
+        env:
+          # Bu secret, bir sonraki adımda ekleyeceğin tek anahtardır
+          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Kullanılacak model/engine adı
+          CODEX_ENGINE: gpt-4-turbo # veya "code-davinci-002" vb.
         run: |
-          # Codex CLI veya script üzerinden promptu çalıştır
-          codex run --prompt-file codex_prompt.txt --output-dir generated
+          echo "Starting Codex run..."
+          if [ -z "$CODEX_API_KEY" ]; then 
+            echo "::error:: OPENAI_API_KEY secret is not set."
+            exit 1
+          fi
+
+          # codex_prompt.txt dosyasını JSON formatına çevir
+          PROMPT_JSON=$(jq -Rs . < codex_prompt.txt)
+          
+          echo "Prompt file loaded. Calling Codex API..."
+
+          # Codex/OpenAI API'sine curl ile istek at
+          # Not: 'code-davinci-002' eski bir model. Modern bir model (gpt-4-turbo) daha iyi sonuç verir.
+          curl -s -X POST "https://api.openai.com/v1/chat/completions" \
+            -H "Authorization: Bearer $CODEX_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+                  \"model\": \"${CODEX_ENGINE}\",
+                  \"messages\": [{\"role\": \"user\", \"content\": ${PROMPT_JSON}}],
+                  \"max_tokens\": 4096,
+                  \"temperature\": 0.0
+                }" \
+            > codex_response.json
+
+          echo "Codex response received."
+
+      - name: 4. Upload Response as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-response
+          path: codex_response.json
